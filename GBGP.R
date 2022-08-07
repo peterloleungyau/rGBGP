@@ -167,9 +167,17 @@ cal_min_heights <- function(rules) {
 grammar <- function(rules, start) {
   rules_with_names <- normalize_and_name_rules(rules)
   md <- cal_min_heights(rules_with_names)
+  # for convenience, also update each rule with the calculated min
+  # height, where for some rules it may be NA.
+  rules_with_mh <- lapply(rules_with_names, function(r) {
+    r_name <- r[["name"]]
+    r[["min_height"]] <- md$rules_min_heights[r_name]
+    r
+  })
+  #
   res <- list(
     start = start,
-    rules = rules_with_names,
+    rules = rules_with_mh,
     nt_min_heights = md$nt_min_heights,
     rules_min_heights = md$rules_min_heights
   )
@@ -248,4 +256,87 @@ as_func_call <- function(vs) {
 #' @export
 first <- function(vs) {
   vs[[1]]
+}
+
+# generation of chromosome (tree) from grammar -------------------------------
+
+#' To create an internal node corresponding to a non-terminal. Note
+#' that terminal can be directly represented.
+#'
+#' @param nt The non-terminal as a character string.
+#' @param rule_name The name of the rule generating the children.
+#' @param children The list of children objects, which could be a node
+#'   (for subtree corresponding to non-terminal) or other values
+#'   (corresponding to terminals).
+#' @return An object of class "node", which is a tree.
+#' @export
+create_node <- function(nt, rule_name, children) {
+  res <- list(nt = nt, rn = rule_name, cs = children)
+  class(res) <- "node"
+  res
+}
+
+#' To generate a tree of nodes as chromsome
+#'
+#' @param x The object to create from, which could be a non-terminal,
+#'   terminal, a grammar, a rule.
+#' @param G The grammar as returned by \code{grammar()}.
+#' @param max_height The allowed maximum height. The generation will
+#'   try to avoid generating a chromsome with height exceeding this. A
+#'   terminal has height 1, and every layer of non-terminal adds 1 to
+#'   the height.
+#' @return An object of class "node", which is a tree.
+#' @export
+generate_chromosome <- function(x, G, max_height) {
+  UseMethod("generate_chromosome")
+}
+
+#' Default generation is to treat it as a terminal.
+generate_chromosome.default <- function(x, G, max_height) {
+  x
+}
+
+#' For character string, either generate as non-terminal, or a
+#' terminal.
+generate_chromosome.character <- function(x, G, max_height) {
+  if(is_non_terminal(x, G$rules)) {
+    # non-terminal
+    rs_within_height <- Filter(function(r) {r[["min_height"]] <= max_height}, G$rules[[x]])
+    if(length(rs_within_height) > 0) {
+      r_idx <- sample.int(length(rs_within_height), size = 1)
+      rule_to_use <- rs_within_height[[r_idx]]
+      # generate form the rule body.
+      
+      # NOTE: do not set a separate method for rule because we also
+      # want to set the non-terminal, which is now not recorded in the
+      # rule itself. TODO: may consider adding the non-terminal to the
+      # rule.
+      create_node(nt = x,
+                  rule_name = rule_to_use[["name"]],
+                  children = lapply(rule_to_use[["body"]], function(z) {
+                    generate_chromosome(z, G, max_height - 1)
+                  }))
+    } else {
+      stop("No applicable rule for non-terminal ", nt,
+           " with minium height within ", max_height, "\n")
+    }
+  } else {
+    # terminal, as is
+    x
+  }
+}
+
+#' For grammar, just generate using the start non-terminal.
+generate_chromosome.grammar <- function(x, G, max_height) {
+  generate_chromosome(x$start, G, max_height)
+}
+
+#' For explicit simple terminal, just return its value
+generate_chromosome.terminal <- function(x, G, max_height) {
+  x$val
+}
+
+#' For explicit generated terminal, call its function to generate a terminal.
+generate_chromosome.generated_terminal <- function(x, G, max_height) {
+  x$func()
 }
