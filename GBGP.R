@@ -342,3 +342,178 @@ generate_chromosome.terminal <- function(x, G, max_height) {
 generate_chromosome.generated_terminal <- function(x, G, max_height) {
   x$func()
 }
+
+# crossover and mutation operators -------------------------------------------
+
+# some utilities
+
+always_true <- function(x) TRUE
+
+#' To get all the nodes of a chromosome, for selection purpose.
+#'
+#' @param chr The chromosome, which should be a node.
+#' @param is_wanted Optional predicate function the returns TRUE if a
+#'   node is wanted.
+#' @return a named list with:
+#'
+#'   nodes: the list of nodes
+#'
+#'   heights: a vector of the heights of the nodes corresponding to
+#'   the nodes. This will be useful to adjust the selection
+#'   probability by height.
+#' @export
+get_chr_nodes <- function(chr, is_wanted = always_true) {
+  n <- 1
+  ns <- list()
+  hs <- list()
+  visit <- function(z, h) {
+    if(inherits(z, "node")) {
+      if(is_wanted(z)) {
+        ns[[n]] <<- z
+        hs[[n]] <<- h
+        n <<- n+1
+      }
+      # visit all the children
+      for(w in z[["cs"]]) visit(w, h+1)
+    }
+  }
+  #
+  visit(chr, h = 1)
+  #
+  list(nodes = ns, heights = unlist(hs))
+}
+
+#' To replace old node with new node in chromosome.
+#'
+#' @param chr The chromosome to copy and modify.
+#' @param old_node The old node in \code{chr} to replace.
+#' @param new_node The new node to replace \code{old_node} in
+#'   \code{chr}.
+#' @return A copied and modified chromosome with \code{old_node}
+#'   replaced with \code{new_node}.
+#' @export
+replace_node <- function(chr, old_node, new_node) {
+  if(inherits(chr, "node")) {
+    if(identical(chr, old_node)) {
+      # replace
+      new_node
+    } else {
+      # copy and replace in children
+      new_n <- chr
+      new_n[["cs"]] <- lapply(chr_n[["cs"]], function(z) {
+        replace_node(z, old_node, new_node)
+      })
+      new_n
+    }
+  } else {
+    chr
+  }
+}
+
+#' A simple chromosome crossover function, that can serve as reference
+#' for customization. This function will first select a node from the
+#' first chromosome, and then select a node of the same non-terminal
+#' in the second chromosome, and then crossover them. If no nodes of
+#' the same non-terminal in the second chromosome can be found, the
+#' function will retry by selecting another node from the first
+#' chromosome, up to a maximum number of trials. If there is no
+#' success after a maximum number of trials, the first chromosome will
+#' simply be returned. If the first chromosome has no 
+#'
+#' @param chr1 The first chromosome.
+#' @param chr2 The second chromosome.
+#' @param n.tries The maximum number of tries before giving up and
+#'   return the first chromosome.
+#' @param is_wanted1 Optional prediction function whether to consider
+#'   nodes of chr1.
+#' @param is_wanted2 Optional prediction function whether to consider
+#'   nodes of chr2.
+#' @param height_prob_func1 Optional, default NULL. If non-NULL,
+#'   should be a function(heights, nodes) that should return the
+#'   vector of probability of choosing the nodes of chr1. If NULL,
+#'   there is no bias in the nodes.
+#' @param height_prob_func2 Optional, similar to height_prob_func1,
+#'   but for biasing the nodes of chr2.
+#' @param nt_crossovers Optional, default empty list. This can be a
+#'   named list to maps non-terminal name to custom
+#'   function(node_chr1, node_chr2) that returns a new node from
+#'   selected nodes from chr1 and chr2, to replace the old node from
+#'   chr1. If the selected non-terminal has no entry in
+#'   \code{nt_crossovers}, then simply the node selected from chr2 is
+#'   used as the new node.
+#' @return A possibly crossovered chromsome.
+#' @export
+chr_crossover_func <- function(chr1, chr2,
+                               n.tries = 10,
+                               is_wanted1 = always_true,
+                               is_wanted2 = always_true,
+                               height_prob_func1 = NULL,
+                               height_prob_func2 = height_prob_func1,
+                               nt_crossovers = list()) {
+  ns1 <- get_chr_nodes(chr1, is_wanted = is_wanted1)
+  if(length(ns1$heights) == 0) {
+    # hopeless
+    return(chr2)
+  }
+  #
+  ns1_prob <- if(!is.null(height_prob_func1)) {
+    height_prob_func1(ns1$heights, ns1$nodes)
+  } else {
+    NULL
+  }
+
+  for(i in seq(n.tries)) {
+    idx1 <- sample.int(length(ns1$heights), size = 1, prob = ns1_prob)
+    node_chr1 <- ns1$nodes[[idx1]]
+    nt1 <- node_chr1[["nt"]]
+    # try to get another node from chr2
+    ns2 <- get_chr_nodes(chr2, is_wanted = function(z) {
+      (z[["nt"]] == nt1) && is_wanted2(z)
+    })
+
+    if(length(ns2$heights) > 0) {
+      ns2_prob <- if(!is.null(height_prob_func2)) {
+        height_prob_func2(ns2$heights, ns2$nodes)
+      } else {
+        NULL
+      }
+
+      idx2 <- sample.int(length(ns2$heights), size = 1, prob = ns2_prob)
+      node_chr2 <- ns2$nodes[[idx2]]
+
+      # finally got two nodes to crossover, see if we have custom node
+      # crossover operators.
+      new_node <- if(!is.null()) {
+        special_crossover_func <- nt_crossovers[[nt1]]
+        special_crossover_func(node_chr1, node_chr2)
+      } else {
+        # no custom one, just use the one from chr2
+        node_chr2
+      }
+
+      #
+      return(replace_node(chr1, old_ns = node_chr1, new_ns = new_node))
+    }
+  }
+  # give up
+  return(chr1)
+}
+
+#' An example of generating height bias function. The root has a
+#' separate weight as bias, and each nodes of height 2 and onward gets
+#' exponential weight. Lastly the weights are normalized to get
+#' probability bias.
+#'
+#' @param subtree_weight The exponential multiplier of nodes with
+#'   height 2 or more, i.e. (subtree_weight)^(height - 1).
+#' @param root_weight The weight for root node, i.e. height of 1.
+#' @return A function that can be used as \code{height_prob_func1} and
+#'   \code{height_prob_func2} in \code{chr_crossover_func}.
+#' @export
+get_height_prob_func <- function(subtree_weight, root_weight = 1) {
+  function(heights, nodes) {
+    ps <- subtree_weight(heights - 1)
+    ps[heights == 1] <- root_weight
+    ps/sum(ps)
+  }
+}
