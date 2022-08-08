@@ -26,3 +26,8 @@ tmp_hs <- cal_min_heights(tmp_rules)
 
 test_sixmultiplexor_G <- grammar(rules = test_sixmultiplexor_rules,
                                  start = "S")
+
+
+# test generation
+test_chr1 <- generate_chromosome(test_sixmultiplexor_G, G = test_sixmultiplexor_G, max_height = 5)
+test_chr2 <- generate_chromosome(test_sixmultiplexor_G, G = test_sixmultiplexor_G, max_height = 5)

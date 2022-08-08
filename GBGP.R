@@ -169,10 +169,12 @@ grammar <- function(rules, start) {
   md <- cal_min_heights(rules_with_names)
   # for convenience, also update each rule with the calculated min
   # height, where for some rules it may be NA.
-  rules_with_mh <- lapply(rules_with_names, function(r) {
-    r_name <- r[["name"]]
-    r[["min_height"]] <- md$rules_min_heights[r_name]
-    r
+  rules_with_mh <- lapply(rules_with_names, function(rs) {
+    lapply(rs, function(r) {
+      r_name <- r[["name"]]
+      r[["min_height"]] <- md$rules_min_heights[r_name]
+      r
+    })
   })
   #
   res <- list(
