@@ -418,15 +418,21 @@ replace_node <- function(chr, old_node, new_node) {
 #' function will retry by selecting another node from the first
 #' chromosome, up to a maximum number of trials. If there is no
 #' success after a maximum number of trials, the first chromosome will
-#' simply be returned. If the first chromosome has no 
+#' simply be returned. If the first chromosome has no nodes (which
+#' should not happen), then the second chromosome will be returned. In
+#' the simplest case, the crossover simply use the selected node from
+#' the second chromosome to replace the selected node in the first
+#' chromosome, but custom node crossover function specific to the
+#' non-terminal could be provided, see \code{nt_crossovers} for
+#' details.
 #'
 #' @param chr1 The first chromosome.
 #' @param chr2 The second chromosome.
 #' @param n.tries The maximum number of tries before giving up and
 #'   return the first chromosome.
-#' @param is_wanted1 Optional prediction function whether to consider
+#' @param is_wanted1 Optional predicate function whether to consider
 #'   nodes of chr1.
-#' @param is_wanted2 Optional prediction function whether to consider
+#' @param is_wanted2 Optional predicate function whether to consider
 #'   nodes of chr2.
 #' @param height_prob_func1 Optional, default NULL. If non-NULL,
 #'   should be a function(heights, nodes) that should return the
@@ -483,7 +489,7 @@ chr_crossover_func <- function(chr1, chr2,
 
       # finally got two nodes to crossover, see if we have custom node
       # crossover operators.
-      new_node <- if(!is.null()) {
+      new_node <- if(!is.null(nt_crossovers[[nt1]])) {
         special_crossover_func <- nt_crossovers[[nt1]]
         special_crossover_func(node_chr1, node_chr2)
       } else {
@@ -497,6 +503,68 @@ chr_crossover_func <- function(chr1, chr2,
   }
   # give up
   return(chr1)
+}
+
+#' A simple chromosome mutation function, that can serve as reference
+#' for customization. This function will select a node from the
+#' chromosome, then either the default node_mutator is applied or a
+#' custom non-terminal specific mutator is applied if there is
+#' one. Note that the mutation is applied only to a node corresponding
+#' to non-terminal. If mutation of terminal is desired, then the
+#' non-terminal specific custom mutator could be used to copy the node
+#' but mutator one of the terminal, as appripriate.
+#'
+#' @param chr The chromosome to mutate.
+#' @param default_node_mutator The function(node) that mutate a
+#'   selected node, and the old node in \code{chr} will be replaced
+#'   with the mutated node.
+#' @param is_wanted Optional predicate function whether to consider
+#'   nodes of chr.
+#' @param height_prob_func Optional, default NULL. If non-NULL, should
+#'   be a function(heights, nodes) that should return the vector of
+#'   probability of choosing the nodes of chr. If NULL, there is no
+#'   bias in the nodes.
+#' @param nt_mutators Optional, default empty list. This can be a
+#'   named list to maps non-terminal name to custom function(node)
+#'   that returns a new node from selected node from chr, to replace
+#'   the old node from chr. If the selected non-terminal has no entry
+#'   in \code{nt_mutators}, then simply the
+#'   \code{default_node_mutator} is applied to get the new node.
+#' @return A possibly mutated chromosome.
+#' @export
+chr_mutation_func <- function(chr,
+                              default_node_mutator,
+                              is_wanted = always_true,
+                              height_prob_func = NULL,
+                              nt_mutators = list()) {
+  ns <- get_chr_nodes(chr, is_wanted = is_wanted)
+  if(length(ns$heights) == 0) {
+    # hopeless
+    return(chr)
+  }
+  #
+  ns_prob <- if(!is.null(height_prob_func)) {
+    height_prob_func(ns$heights, ns$nodes)
+  } else {
+    NULL
+  }
+
+  # select a node
+  idx <- sample.int(length(ns$heights), size = 1, prob = ns_prob)
+  node_chr <- ns$nodes[[idx]]
+  nt <- node_chr[["nt"]]
+
+  # generate new node
+  special_mutation_func <- if(!is.null(nt_mutators[[nt]])) {
+    nt_mutators[[nt]]
+  } else {
+    # no custom one, just use the default one
+    default_node_mutator
+  }
+
+  new_node <- special_mutation_func(node_chr)
+  #
+  replace_node(chr, old_ns = node_chr, new_ns = new_node)
 }
 
 #' An example of generating height bias function. The root has a
