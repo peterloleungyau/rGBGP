@@ -659,12 +659,61 @@ convert_to_phenotype <- function(x, G) {
 
 # stopping conditions --------------------------------------------------------
 
-#' Stopping up to maximum generations
-#' 
+# The stopping condition can look at a few information and returns
+# TRUE if the evolution should end:
+#
+#   pop: the list of current population
+#
+#   n_gen_ended: the number of generations already done.
+#
+#   cur_best_fitness: the current best fitness value.
+#
+#   n_gen_of_best_fitness: the generation when the current best fitness is first obtained.
+#
+#   start_time: the starting time of the evolution.
+#
+
+#' Stopping up to maximum generations.
+#'
+#' @param max_gen The maximum generations after which the evolution
+#'   should end.
+#' @return A stopping condition function that would return TRUE if
+#'   \code{max_gen} generations has been done.
+#' @export
+stop_when_max_gen <- function(max_gen) {
+  function(pop, n_gen_ended, cur_best_fitness, n_gen_of_best_fitness, start_time) {
+    n_gen_ended >= max_gen
+  }
+}
 
 #' Stopping when no improvement in a certain number of generations
 #' 
+stop_when_no_improvement_in_n_gen <- function(n_gen_no_improvement) {
+  function(pop, n_gen_ended, cur_best_fitness, n_gen_of_best_fitness, start_time) {
+    (n_gen_ended - n_gen_of_best_fitness) >= n_gen_no_improvement
+  }
+}
 
+#' Convenience function to combine stopping conditions
+#'
+#' @param ... The stopping condition functions, e.g. by
+#'   \code{stop_when_max_gen()} or
+#'   \code{stop_when_no_improvement_in_n_gen()} or any custom stopping
+#'   condition function.
+#' @return A stopping condition that is true if any of the stopping
+#'   conditions is true.
+#' @export
+either_or <- function(...) {
+  stopping_conds <- list(...)
+  function(...) {
+    for(stopping_cond in stopping_conds) {
+      if(stopping_cond(...)) {
+        return(TRUE)
+      }
+    }
+    return(FALSE)
+  }
+}
 
 # generate initial populations -----------------------------------------------
 
