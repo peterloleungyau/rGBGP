@@ -281,6 +281,16 @@ first <- function(vs) {
   vs[[1]]
 }
 
+#' Rule action to get leaf as symbol.
+#'
+#' @param vs The list of value, where there should only be one, and
+#'   will be coerced to symbol and returned as the constructed value.
+#' @return The first value as symbol.
+#' @export
+first_as_symbol <- function(vs) {
+  as.symbol(vs[[1]])
+}
+
 # generation of chromosome (tree) from grammar -------------------------------
 
 #' To create an internal node corresponding to a non-terminal. Note
@@ -632,3 +642,30 @@ want_only_some_non_terminals <- function(wanted_non_terminals) {
   }
 }
 
+# genotype to phenotype ------------------------------------------------------
+
+convert_to_phenotype <- function(x, G) {
+  if(inherits(x, "node")) {
+    children_vals <- lapply(x[["cs"]],
+                            function(z) convert_to_phenotype(z, G))
+    r_name <- x[["rn"]]
+    r <- G$rules_by_name[[r_name]]
+    r_action <- r[["action"]]
+    r_action(children_vals)
+  } else {
+    x
+  }
+}
+
+# stopping conditions --------------------------------------------------------
+
+#' Stopping up to maximum generations
+#' 
+
+#' Stopping when no improvement in a certain number of generations
+#' 
+
+
+# generate initial populations -----------------------------------------------
+
+# evolution main function ----------------------------------------------------
