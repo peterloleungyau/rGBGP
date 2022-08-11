@@ -4,10 +4,10 @@
 test_sixmultiplexor_rules <- list(
   S = rule("B", action = first),
   B = list(
-    rule("and", "B", "B"),
-    rule("or", "B", "B"),
-    rule("not", "B"),
-    rule("if", "B", "B", "B"),
+    rule("and", "B", "B", name = "r_and"),
+    rule("or", "B", "B", name = "r_or"),
+    rule("not", "B", name = "r_not"),
+    rule("if", "B", "B", "B", name = "r_if"),
     rule("T", action = first)
   ),
   T = list(

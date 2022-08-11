@@ -22,15 +22,18 @@ is_non_terminal <- function(x, rules) {
 #' @param rules The named list of rules as accepted by
 #'   \code{grammar()}.
 #' @return Normalized named list of rules, such that each rule has a
-#'   unique name, and each is a list of rule as constructed by
-#'   \code{rule()}, even though a non-terminal may have only one rule.
+#'   generated name if it does not already have a name, and each is a
+#'   list of rule as constructed by \code{rule()}, even though a
+#'   non-terminal may have only one rule.
 normalize_and_name_rules <- function(rules) {
   # the terminals and non-terminals are left implicit, as determined by is_non_terminal()
   sapply(names(rules), function(nt) {
     rs <- rules[[nt]]
     if(inherits(rs, "rule")) {
       # a single rule
-      rs[["name"]] <- paste0(nt, ":1")
+      if(is.null(rs[["name"]])) {
+        rs[["name"]] <- paste0(nt, ":1") 
+      }
       list(rs)
     } else if(is.list(rs)) {
       # should be a list of rules
@@ -39,7 +42,9 @@ normalize_and_name_rules <- function(rules) {
           stop("The rule ", i, " of ", nt, " is not of class 'rule':",
                r, "\n")
         }
-        r[["name"]] <- paste0(nt, ":", i)
+        if(is.null(r[["name"]])) {
+          r[["name"]] <- paste0(nt, ":", i)
+        }
         r
       }, seq_along(rs), rs,
       SIMPLIFY = FALSE, USE.NAMES = FALSE)
@@ -156,6 +161,8 @@ cal_min_heights <- function(rules) {
 #'   rules: named list of processed rules, each named by the
 #'   non-terminal, and each rule will get a name.
 #'
+#'   rules_by_name: named list of each rule mapped by the rule name.
+#'
 #'   nt_min_heights: named list of minimum heights of non-terminals,
 #'   using the non-terminal name as name.
 #'
@@ -177,9 +184,18 @@ grammar <- function(rules, start) {
     })
   })
   #
+  rs_by_name <- list()
+  for(rs in rules_with_mh) {
+    for(r in rs) {
+      r_name <- r[["name"]]
+      rs_by_name[[r_name]] <- r
+    }
+  }
+  #
   res <- list(
     start = start,
     rules = rules_with_mh,
+    rules_by_name = rs_by_name,
     nt_min_heights = md$nt_min_heights,
     rules_min_heights = md$rules_min_heights
   )
@@ -215,6 +231,11 @@ gen_term <- function(func) {
 
 #' To construct one rule for a non-terminal.
 #'
+#' @param name Optional character name to give to this rule. Note that
+#'   you should make sure different rules have distinct names. And
+#'   should avoid using the pattern of "non-terminal:number" as name,
+#'   because it is the pattern of auto-generated name in
+#'   \code{normalize_and_name_rules()}.
 #' @param action A function that will construct the phenotype from a
 #'   list of constructed values of the rule body. The default is
 #'   \code{as_func_call} which will construct a function call where
@@ -229,9 +250,9 @@ gen_term <- function(func) {
 #'   character string as terminal, use the \code{term()} function.
 #' @return An object of class "rule".
 #' @export
-rule <- function(..., action = as_func_call) {
+rule <- function(..., name = NULL, action = as_func_call) {
   ts <- list(...)
-  res <- list(body = ts, action = action)
+  res <- list(body = ts, name = name, action = action)
   class(res) <- "rule"
   res
 }
