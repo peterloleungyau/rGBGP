@@ -400,7 +400,7 @@ replace_node <- function(chr, old_node, new_node) {
     } else {
       # copy and replace in children
       new_n <- chr
-      new_n[["cs"]] <- lapply(chr_n[["cs"]], function(z) {
+      new_n[["cs"]] <- lapply(chr[["cs"]], function(z) {
         replace_node(z, old_node, new_node)
       })
       new_n
@@ -498,7 +498,7 @@ chr_crossover_func <- function(chr1, chr2,
       }
 
       #
-      return(replace_node(chr1, old_ns = node_chr1, new_ns = new_node))
+      return(replace_node(chr1, old_node = node_chr1, new_node = new_node))
     }
   }
   # give up
@@ -564,7 +564,7 @@ chr_mutation_func <- function(chr,
 
   new_node <- special_mutation_func(node_chr)
   #
-  replace_node(chr, old_ns = node_chr, new_ns = new_node)
+  replace_node(chr, old_node = node_chr, new_node = new_node)
 }
 
 #' An example of generating height bias function. The root has a
@@ -585,3 +585,29 @@ get_height_prob_func <- function(subtree_weight, root_weight = 1) {
     ps/sum(ps)
   }
 }
+
+#' An example convenience function to get a default node mutator that
+#' re-generates the node for the non-terminal, that can be used as
+#' \code{default_node_mutator} in \code{chr_mutation_func}.
+#'
+#' @param G The grammar as returned by \code{grammar()}.
+#' @param The allowed maximum height in the re-generation of the node.
+#' @return A function(node) that can be used as
+#'   \code{default_node_mutator} in \code{chr_mutation_func}.
+#' @export
+get_re_gen_node_mutator <- function(G, max_height = 5) {
+  function(node) {
+    generate_chromosome(node[["nt"]], G, max_height)
+  }
+}
+
+#' A convenience function to generate node predicate that only wants
+#' some non-terminals.
+#'
+#' @param
+want_only_some_non_terminals <- function(wanted_non_terminals) {
+  function(node) {
+    node[["nt"]] %in% wanted_non_terminals
+  }
+}
+
