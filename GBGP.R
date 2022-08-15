@@ -717,4 +717,30 @@ either_or <- function(...) {
 
 # generate initial populations -----------------------------------------------
 
+
+
+# reporting function ---------------------------------------------------------
+
+#' Convenience function to generate a reporting function, which is a
+#' function that gets the same inputs as stopping condition function
+#' (pop, n_gen_ended, cur_best_fitness, n_gen_of_best_fitness,
+#' start_time) and is called after each generation, and it should
+#' report the progress as appropriate.
+#'
+#' @param report_every_n_gen Optional, default 1. Determines the
+#'   frequency to report progress. After the end of the first
+#'   generation, will report again after \code{report_every_n_gen}
+#'   generations. I.e. for the default value of 1, will report at the
+#'   end of every generation.
+#' @return A reporting function.
+#' @export
+progress_reporter <- function(report_every_n_gen = 1) {
+  function(pop, n_gen_ended, cur_best_fitness, n_gen_of_best_fitness, start_time) {
+    if(((n_gen_ended - 1) %% report_every_n_gen) == 0) {
+      cat("After ", n_gen_ended, "generation(s), current best fitness is ",
+          cur_best_fitness, " obtained in generation ", n_gen_of_best_fitness, "\n")
+    }
+  }
+}
+
 # evolution main function ----------------------------------------------------
