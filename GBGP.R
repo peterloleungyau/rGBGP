@@ -717,7 +717,22 @@ either_or <- function(...) {
 
 # generate initial populations -----------------------------------------------
 
-
+#' To generate a list of n chromosomes (note that it is not evaluated
+#' yet).
+#'
+#' @param n The number of chromosomes to generate.
+#' @param G The grammar as returned by \code{grammar()}.
+#' @param max_height The maximum allowed height in generation. A leaf
+#'   has height 1, each level of non-terminal adds 1 to the height.
+#' @param start_nt Optional, the non-terminal to generate. Default is
+#'   the starting symbol of the grammar \code{G}.
+#' @return A list of \code{n} chromosomes.
+#' @export
+generate_init_chrs <- function(n, G, max_height, start_nt = G$start) {
+  lapply(seq(n), function(i) {
+    generate_chromosome(start_nt, G, max_height)
+  })
+}
 
 # reporting function ---------------------------------------------------------
 
