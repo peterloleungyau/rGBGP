@@ -672,6 +672,7 @@ convert_to_phenotype <- function(x, G) {
 #
 #   start_time: the starting time of the evolution.
 #
+#   n_evals: the number of fitness evaluations performed.
 
 #' Stopping up to maximum generations.
 #'
@@ -681,7 +682,8 @@ convert_to_phenotype <- function(x, G) {
 #'   \code{max_gen} generations has been done.
 #' @export
 stop_when_max_gen <- function(max_gen) {
-  function(pop, n_gen_ended, cur_best_fitness, n_gen_of_best_fitness, start_time) {
+  function(pop, n_gen_ended, cur_best_fitness,
+           n_gen_of_best_fitness, start_time, n_evals) {
     n_gen_ended >= max_gen
   }
 }
@@ -689,8 +691,18 @@ stop_when_max_gen <- function(max_gen) {
 #' Stopping when no improvement in a certain number of generations
 #' 
 stop_when_no_improvement_in_n_gen <- function(n_gen_no_improvement) {
-  function(pop, n_gen_ended, cur_best_fitness, n_gen_of_best_fitness, start_time) {
+  function(pop, n_gen_ended, cur_best_fitness,
+           n_gen_of_best_fitness, start_time, n_evals) {
     (n_gen_ended - n_gen_of_best_fitness) >= n_gen_no_improvement
+  }
+}
+
+#' Stopping when reached maximum number of evaluations.
+#' 
+stop_when_max_evals <- function(max_evals) {
+  function(pop, n_gen_ended, cur_best_fitness,
+           n_gen_of_best_fitness, start_time, n_evals) {
+    n_evals >= max_evals
   }
 }
 
