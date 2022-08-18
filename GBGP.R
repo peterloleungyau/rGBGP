@@ -762,12 +762,264 @@ generate_init_chrs <- function(n, G, max_height, start_nt = G$start) {
 #' @return A reporting function.
 #' @export
 progress_reporter <- function(report_every_n_gen = 1) {
-  function(pop, n_gen_ended, cur_best_fitness, n_gen_of_best_fitness, start_time) {
+  function(pop, n_gen_ended, cur_best_fitness,
+           n_gen_of_best_fitness, start_time, n_evals) {
     if(((n_gen_ended - 1) %% report_every_n_gen) == 0) {
-      cat("After ", n_gen_ended, "generation(s), current best fitness is ",
+      cat("After ", n_gen_ended, "generation(s),",
+          n_evals, " evaluations, current best fitness is ",
           cur_best_fitness, " obtained in generation ", n_gen_of_best_fitness, "\n")
     }
   }
 }
 
+# individuals ----------------------------------------------------------------
+
+#' Convenience function to create an individual, which is a chromosome
+#' together with fitness.
+#'
+#' @param chr The chromosome.
+#' @param fitness The fintess value.
+#' @return An object of class "individual".
+#' @export
+create_individual <- function(chr, fitness) {
+  r <- list(chr = chr, fitness = fitness)
+  class(r) <- "individual"
+  r
+}
+
+#' To sort a list of individuals from best to worst fitness.
+#'
+#' @param inds The list of individuals.
+#' @param better_score Optional, defualt `>`. A function(fitness1,
+#'   fitness2) that should return TRUE if fitness1 is better than
+#'   fitness2. For example, `>` would sort by descending fitness;
+#'   while `<` would sort by ascending fitness.
+#' @return A sorted listed of individuals.
+#' @export
+sort_individuals <- function(inds, better_score = `>`) {
+  TODO
+}
+
+# selection operator ---------------------------------------------------------
+
+#' Simple tournament selection. Will randomly select two individuals,
+#' and return the one with higher fitness. In case of ties, will
+#' return the first selected one.
+#'
+#' @param pop the list of current population of individuals, sorted
+#'   from the best to worst individuals, according to
+#'   \code{better_score}.
+#' @param better_score Optional, defualt `>`. A function(fitness1,
+#'   fitness2) that should return TRUE if fitness1 is better than
+#'   fitness2. For example, `>` would maximize the fitness; while `<`
+#'   would minimize the fitness.
+#' @param replace Optional, default TRUE. Whether the two individuals
+#'   are selected with replacement. Note that if TRUE, the two
+#'   selected individuals may be the same one, and therefore even the
+#'   individual with the worst fitness still has a chance of being
+#'   selected.
+#' @return An individual from pop.
+#' @export
+simple_tournament <- function(pop, better_score = `>`, replace = TRUE) {
+  idx <- sample.int(length(pop), size = 2, replace = replace)
+  idx1 <- idx[1]
+  idx2 <- idx[2]
+  if(better_score(pop[[idx1]]$fitness, pop[[idx2]]$fitness)) {
+    pop[[idx1]]
+  } else {
+    pop[[idx2]]
+  }
+}
+
 # evolution main function ----------------------------------------------------
+
+#' A simple steady-state elitism GBGP.
+#'
+#' @param init_chrs Optional, default NULL. If non-NULL, should be an
+#'   unnamed list of chromosomes, to be used for the initial
+#'   population after fitness evaluation. Note that if this is
+#'   non-NULL, then \code{init_pop} is ignored; and the length of this
+#'   list will be the population size. If this is NULL, then
+#'   \code{init_pop} should be non-NULL.
+#' @param init_pop Optional, default NULL. If non-NULL, should be an
+#'   unnamed list of individuals, where each is an individual as
+#'   created by \code{create_individual()}, i.e. a chromosome together
+#'   with fitness value. Note that if \code{init_chrs} is non-NULL,
+#'   \code{init_pop} is ignored. If \code{init_chrs} is NULL, then
+#'   \code{init_pop} should be non-NULL and the length will be the
+#'   population size.
+#' @param fitness_evaluator A function(chr) that gives that evaluates
+#'   the chromosome and returns the fitness value. Note that the
+#'   fitness value can have arbitrary attributes, which will be
+#'   preserved.
+#' @param when_to_stop Stopping condition function, which should
+#'   return TRUE if the evolution should stop after a generation. The
+#'   function will get these parameters:
+#'
+#'     pop: the list of current population of individuals, sorted from
+#'     the best to worst individuals, according to
+#'     \code{maximize_fitness}.
+#'  
+#'     n_gen_ended: the number of generations already done.
+#'  
+#'     cur_best_fitness: the current best fitness value.
+#'  
+#'     n_gen_of_best_fitness: the generation when the current best
+#'     fitness is first obtained.
+#'  
+#'     start_time: the starting time of the evolution.
+#'  
+#'     n_evals: the number of fitness evaluations performed.
+#'
+#' @param selector Optional, default \code{simple_tournament}. This
+#'   should be a function(pop, better_score) that when given a list of
+#'   population of individuals, and the \code{better_score} function,
+#'   should select one individual for crossover or mutation use.
+#' @param p_crossover Specifies the portion of offsprings created with
+#'   crossover in each generation, and should be non-negative. More
+#'   specifically, for a population size of \code{n_pop_size},
+#'   \code{ceiling(p_crossover * n_pop_size)} offsprings will be
+#'   produced from crossover of two selected individuals (using
+#'   \code{selector}). Ater new offsprings are created (together with
+#'   those created by mutation), the offsprings are unioned with the
+#'   parents, and the best (according to \code{better_score})
+#'   \code{n_pop_size} individuals are kept for the new
+#'   generation. Note that it is allowed to have \code{p_crossover}
+#'   greater than 1, and \code{p_crossover + p_mutation} need NOT sum
+#'   to 1.
+#' @param chr_crossoveror A function(chr1, chr2) that should return
+#'   the crossovered chromosome. For example, can create a function
+#'   that uses \code{chr_crossover_func} by specifying other
+#'   parameters.
+#' @param p_mutation Specifies the portion of offsprings created with
+#'   mutation in each generation, and should be non-negative. More
+#'   specifically, for a population size of \code{n_pop_size},
+#'   \code{ceiling(p_mutation * n_pop_size)} offsprings will be
+#'   produced from mutation of one selected individual (using
+#'   \code{selector}). Ater new offsprings are created (together with
+#'   those created by crossover), the offsprings are unioned with the
+#'   parents, and the best (according to \code{better_score})
+#'   \code{n_pop_size} individuals are kept for the new
+#'   generation. Note that it is allowed to have \code{p_mutation}
+#'   greater than 1, and \code{p_crossover + p_mutation} need NOT sum
+#'   to 1.
+#' @param chr_mutator A function(chr) that should return a mutated
+#'   chromosome. For example, create a function that uses
+#'   \code{chr_mutation_func} by specifying other paramters.
+#' @param maximize_fitness Optional, default TRUE. If TRUE, to
+#'   maximize fitness; otherwise will minimize fitness.
+#' @param better_score Optional, defualt NULL. If NULL, will use
+#'   \code{>} if \code{maximize_fitness} is TRUE, and use \code{<}
+#'   otherwise. If non-NULL, should be a function(fitness1, fitness2)
+#'   that should return TRUE if fitness1 is better than fitness2. Note
+#'   that this function is used in selecting individuals, and can
+#'   possibly use more information from the fitness (if there are
+#'   attributes) to determine the better fitness, but it is
+#'   recommended that it should be consistent with
+#'   \code{maximize_fitness}.
+#' @param reporting_func Optional, default NULL. If non-NULL, it
+#'   should be a function that receives the same paramters as the
+#'   stopping condition function in \code{when_to_stop} and reports
+#'   the progress at the end of a generation. Note that it is entirely
+#'   up to this function to determine whether to report progress, and
+#'   to what verbosity level.
+#' @return Returns a named list with:
+#'
+#'     pop: the list of population of individuals, sorted from the
+#'     best to worst individuals, according to
+#'     \code{maximize_fitness}.
+#'  
+#'     n_gen_ended: the number of generations already done.
+#'  
+#'     best_fitness: the best fitness value found.
+#'  
+#'     n_gen_of_best_fitness: the generation when the best fitness is
+#'     first obtained.
+#'  
+#'     start_time: the starting time of the evolution.
+#'  
+#'     n_evals: the number of fitness evaluations performed.
+#' @export
+steady_state_elitism_GP <- function(init_chrs = NULL, init_pop = NULL,
+                                    fitness_evaluator,
+                                    when_to_stop,
+                                    selector = simple_tournament,
+                                    p_crossover = 0.9, chr_crossoveror,
+                                    p_mutation = 0.05, chr_mutator,
+                                    maximize_fitness = TRUE,
+                                    better_score = NULL,
+                                    reporting_func = NULL
+                                    ) {
+
+  n_evals <- 0
+  
+  # first get the initial population
+  if(!is.null(init_chrs)) {
+    pop <- list()
+    for(i in length(init_chrs)) {
+      pop[[i]] <- create_individual(init_chrs[[i]],
+                                    fitness_evaluator(init_chrs[[i]]))
+      # need to keep track of the number of evaluations
+      n_evals <- n_evals + 1
+    }
+  } else if(!is.null(init_pop)) {
+    pop <- init_pop
+  } else {
+    stop("Need to provide at least init_chrs or init_pop for the initial population.\n")
+  }
+
+  #
+  n_pop_size <- length(pop)
+  n_gen_ended <- 0
+  cur_best_fitness <- NULL
+  n_gen_of_cur_best_fitness <- 0
+  start_time <- TODO
+
+  n_offsprings_by_crossover <- ceiling(p_crossover * n_pop_size)
+  n_offsprings_by_mutation <- ceiling(p_mutation * n_pop_size)
+  
+  while(TRUE) {
+    # create offsprings
+    offsprings_by_crossover <- list()
+    for(i in seq(n_offsprings_by_crossover)) {
+      ind1 <- selector(pop, better_score)
+      ind2 <- selector(pop, better_score)
+      
+      new_chr <- chr_crossoveror(ind1$chr, ind2$chr)
+      offsprings_by_crossover[[i]] <- create_individual(new_chr, fitness_evaluator(new_chr))
+      n_evals <- n_evals + 1
+    }
+
+    offsprings_by_mutation <- list()
+    for(i in seq(n_offsprings_by_mutation)) {
+      ind1 <- selector(pop, better_score)
+      
+      new_chr <- chr_mutator(ind1$chr)
+      offsprings_by_mutation[[i]] <- create_individual(new_chr, fitness_evaluator(new_chr))
+      n_evals <- n_evals + 1
+    }
+
+    # keep only some
+    new_inds <- sort_indviduals(c(pop, offsprings_by_crossover, offsprings_by_mutation),
+                                better_score)
+    
+    pop <- new_inds[1:n_pop_size]
+
+    n_gen_ended <- n_gen_ended + 1
+    if()
+    
+    # report progress
+    if(!is.null(reporting_func)) {
+      reporting_func(pop, n_gen_ended,
+                     cur_best_fitness, n_gen_of_best_fitness,
+                     start_time, n_evals)
+    }
+    
+    # see if should stop
+    if(when_to_stop(pop, n_gen_ended,
+                    cur_best_fitness, n_gen_of_best_fitness,
+                    start_time, n_evals)) {
+      break
+    }
+  }
+}
