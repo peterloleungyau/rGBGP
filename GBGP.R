@@ -666,9 +666,10 @@ convert_to_phenotype <- function(x, G) {
 #
 #   n_gen_ended: the number of generations already done.
 #
-#   cur_best_fitness: the current best fitness value.
+#   cur_best_ind: the current individual with the best fitness value.
 #
-#   n_gen_of_best_fitness: the generation when the current best fitness is first obtained.
+#   n_gen_of_best_ind: the generation when the current best individual
+#   is first obtained.
 #
 #   start_time: the starting time of the evolution.
 #
@@ -682,8 +683,8 @@ convert_to_phenotype <- function(x, G) {
 #'   \code{max_gen} generations has been done.
 #' @export
 stop_when_max_gen <- function(max_gen) {
-  function(pop, n_gen_ended, cur_best_fitness,
-           n_gen_of_best_fitness, start_time, n_evals) {
+  function(pop, n_gen_ended, cur_best_ind,
+           n_gen_of_best_ind, start_time, n_evals) {
     n_gen_ended >= max_gen
   }
 }
@@ -691,17 +692,17 @@ stop_when_max_gen <- function(max_gen) {
 #' Stopping when no improvement in a certain number of generations
 #' 
 stop_when_no_improvement_in_n_gen <- function(n_gen_no_improvement) {
-  function(pop, n_gen_ended, cur_best_fitness,
-           n_gen_of_best_fitness, start_time, n_evals) {
-    (n_gen_ended - n_gen_of_best_fitness) >= n_gen_no_improvement
+  function(pop, n_gen_ended, cur_best_ind,
+           n_gen_of_best_ind, start_time, n_evals) {
+    (n_gen_ended - n_gen_of_best_ind) >= n_gen_no_improvement
   }
 }
 
 #' Stopping when reached maximum number of evaluations.
 #' 
 stop_when_max_evals <- function(max_evals) {
-  function(pop, n_gen_ended, cur_best_fitness,
-           n_gen_of_best_fitness, start_time, n_evals) {
+  function(pop, n_gen_ended, cur_best_ind,
+           n_gen_of_best_ind, start_time, n_evals) {
     n_evals >= max_evals
   }
 }
@@ -790,14 +791,16 @@ create_individual <- function(chr, fitness) {
 #' To sort a list of individuals from best to worst fitness.
 #'
 #' @param inds The list of individuals.
-#' @param better_score Optional, defualt `>`. A function(fitness1,
-#'   fitness2) that should return TRUE if fitness1 is better than
-#'   fitness2. For example, `>` would sort by descending fitness;
-#'   while `<` would sort by ascending fitness.
+#' @param maximize_fitness Optional, default TRUE. If TRUE, to
+#'   maximize fitness; otherwise will minimize fitness.
 #' @return A sorted listed of individuals.
 #' @export
-sort_individuals <- function(inds, better_score = `>`) {
-  TODO
+sort_individuals <- function(inds, maximize_fitness = TRUE) {
+  # TODO: whether to write a custom sorting function that uses
+  # better_score as comparison operator?
+  fitnesses <- sapply(inds, function(x) {x$fitness}, USE.NAMES = FALSE)
+  ix <- order(fitnesses, decreasing = maximize_fitness)
+  inds[ix]
 }
 
 # selection operator ---------------------------------------------------------
@@ -862,10 +865,11 @@ simple_tournament <- function(pop, better_score = `>`, replace = TRUE) {
 #'  
 #'     n_gen_ended: the number of generations already done.
 #'  
-#'     cur_best_fitness: the current best fitness value.
+#'     cur_best_ind: the current individual with the best fitness
+#'     value according to \code{better_score}.
 #'  
-#'     n_gen_of_best_fitness: the generation when the current best
-#'     fitness is first obtained.
+#'     n_gen_of_best_ind: the generation when the current best
+#'     individual is first obtained.
 #'  
 #'     start_time: the starting time of the evolution.
 #'  
@@ -907,7 +911,11 @@ simple_tournament <- function(pop, better_score = `>`, replace = TRUE) {
 #'   chromosome. For example, create a function that uses
 #'   \code{chr_mutation_func} by specifying other paramters.
 #' @param maximize_fitness Optional, default TRUE. If TRUE, to
-#'   maximize fitness; otherwise will minimize fitness.
+#'   maximize fitness; otherwise will minimize fitness. Note that the
+#'   population in each generation will be sorted using R's built-in
+#'   sorting according to \code{maximize_fitness}, so can only compare
+#'   numerical value, and may be less general than
+#'   \code{better_score}.
 #' @param better_score Optional, defualt NULL. If NULL, will use
 #'   \code{>} if \code{maximize_fitness} is TRUE, and use \code{<}
 #'   otherwise. If non-NULL, should be a function(fitness1, fitness2)
@@ -915,8 +923,7 @@ simple_tournament <- function(pop, better_score = `>`, replace = TRUE) {
 #'   that this function is used in selecting individuals, and can
 #'   possibly use more information from the fitness (if there are
 #'   attributes) to determine the better fitness, but it is
-#'   recommended that it should be consistent with
-#'   \code{maximize_fitness}.
+#'   recommended that it be consistent with \code{maximize_fitness}.
 #' @param reporting_func Optional, default NULL. If non-NULL, it
 #'   should be a function that receives the same paramters as the
 #'   stopping condition function in \code{when_to_stop} and reports
@@ -931,12 +938,15 @@ simple_tournament <- function(pop, better_score = `>`, replace = TRUE) {
 #'  
 #'     n_gen_ended: the number of generations already done.
 #'  
-#'     best_fitness: the best fitness value found.
+#'     best_ind: the individual with the best fitness value found, as
+#'     determined by \code{better_score}.
 #'  
-#'     n_gen_of_best_fitness: the generation when the best fitness is
+#'     n_gen_of_best_ind: the generation when the best individual is
 #'     first obtained.
 #'  
 #'     start_time: the starting time of the evolution.
+#'
+#'     end_time: the ending time of the evolution.
 #'  
 #'     n_evals: the number of fitness evaluations performed.
 #' @export
@@ -952,8 +962,12 @@ steady_state_elitism_GP <- function(init_chrs = NULL, init_pop = NULL,
                                     ) {
 
   n_evals <- 0
+  start_time <- Sys.time()
+  if(is.null(better_score)) {
+    better_score <- if(maximize_fitness) `>` else `<`
+  }
   
-  # first get the initial population
+  # get the initial population
   if(!is.null(init_chrs)) {
     pop <- list()
     for(i in length(init_chrs)) {
@@ -971,9 +985,8 @@ steady_state_elitism_GP <- function(init_chrs = NULL, init_pop = NULL,
   #
   n_pop_size <- length(pop)
   n_gen_ended <- 0
-  cur_best_fitness <- NULL
-  n_gen_of_cur_best_fitness <- 0
-  start_time <- TODO
+  cur_best_ind <- NULL
+  n_gen_of_cur_best_ind <- 0
 
   n_offsprings_by_crossover <- ceiling(p_crossover * n_pop_size)
   n_offsprings_by_mutation <- ceiling(p_mutation * n_pop_size)
@@ -1001,25 +1014,42 @@ steady_state_elitism_GP <- function(init_chrs = NULL, init_pop = NULL,
 
     # keep only some
     new_inds <- sort_indviduals(c(pop, offsprings_by_crossover, offsprings_by_mutation),
-                                better_score)
+                                maximize_fitness = maximize_fitness)
     
     pop <- new_inds[1:n_pop_size]
 
     n_gen_ended <- n_gen_ended + 1
-    if()
+
+    # update current best
+    cur_gen_best <- pop[[1]]
+    if(is.null(cur_best_ind) ||
+         better_score(cur_gen_best$fitness,
+                      cur_best_ind$fitness)) {
+      cur_best_ind <- cur_gen_best
+      n_gen_of_cur_best_ind <- n_gen_ended
+    }
     
     # report progress
     if(!is.null(reporting_func)) {
       reporting_func(pop, n_gen_ended,
-                     cur_best_fitness, n_gen_of_best_fitness,
+                     cur_best_ind, n_gen_of_best_ind,
                      start_time, n_evals)
     }
     
     # see if should stop
     if(when_to_stop(pop, n_gen_ended,
-                    cur_best_fitness, n_gen_of_best_fitness,
+                    cur_best_ind, n_gen_of_best_ind,
                     start_time, n_evals)) {
       break
     }
   }
+  
+  # done
+  list(pop = pop,
+       n_gen_ended = n_gen_ended,
+       best_ind = cur_best_ind,
+       n_gen_of_best_ind = n_gen_of_cur_best_ind,
+       start_time = start_time,
+       end_time = Sys.time(),
+       n_evals = n_evals)
 }
