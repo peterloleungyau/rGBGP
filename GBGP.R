@@ -707,6 +707,26 @@ stop_when_max_evals <- function(max_evals) {
   }
 }
 
+#' Stopping when reached max fitness value, in case we are maximizing
+#' and we know what value is the optimum or good enough.
+#' 
+stop_when_max_fitness <- function(max_fitness) {
+  function(pop, n_gen_ended, cur_best_ind,
+           n_gen_of_best_ind, start_time, n_evals) {
+    cur_best_ind$fitness >= max_fitness
+  }
+}
+
+#' Stopping when reached min fitness value, in case we are minimizing
+#' and we know what value is the optimum or good enough.
+#' 
+stop_when_min_fitness <- function(min_fitness) {
+  function(pop, n_gen_ended, cur_best_ind,
+           n_gen_of_best_ind, start_time, n_evals) {
+    cur_best_ind$fitness <= min_fitness
+  }
+}
+
 #' Convenience function to combine stopping conditions
 #'
 #' @param ... The stopping condition functions, e.g. by
