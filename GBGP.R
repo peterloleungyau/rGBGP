@@ -635,7 +635,10 @@ get_re_gen_node_mutator <- function(G, max_height = 5) {
 #' A convenience function to generate node predicate that only wants
 #' some non-terminals.
 #'
-#' @param
+#' @param wanted_non_terminals The vector of non-terminals wanted.
+#' @return a predicate function that is TRUE if a node's non-terminal
+#'   is among the wanted list.
+#' @export
 want_only_some_non_terminals <- function(wanted_non_terminals) {
   function(node) {
     node[["nt"]] %in% wanted_non_terminals
@@ -644,6 +647,13 @@ want_only_some_non_terminals <- function(wanted_non_terminals) {
 
 # genotype to phenotype ------------------------------------------------------
 
+#' To convert from genotype to phenotype
+#'
+#' @param x The chromosome (tree of node) or any of its sub-nodes.
+#' @param G The grammar as returned by \code{grammar()}, so as to
+#'   lookup the rule actions.
+#' @return The converted phenotype, which depends on the rule actions.
+#' @export
 convert_to_phenotype <- function(x, G) {
   if(inherits(x, "node")) {
     children_vals <- lapply(x[["cs"]],
@@ -690,7 +700,13 @@ stop_when_max_gen <- function(max_gen) {
 }
 
 #' Stopping when no improvement in a certain number of generations
-#' 
+#'
+#' @param n_gen_no_improvement To stop after this number of
+#'   generations without fitness improvement.
+#' @return A stopping condition function that would return TRUE if
+#'   there are no fitness improvement after
+#'   \code{n_gen_no_improvement} generations.
+#' @export
 stop_when_no_improvement_in_n_gen <- function(n_gen_no_improvement) {
   function(pop, n_gen_ended, cur_best_ind,
            n_gen_of_best_ind, start_time, n_evals) {
@@ -699,7 +715,11 @@ stop_when_no_improvement_in_n_gen <- function(n_gen_no_improvement) {
 }
 
 #' Stopping when reached maximum number of evaluations.
-#' 
+#'
+#' @param max_evals The maximum number of evaluations.
+#' @return A stopping condition function that would return TRUE after
+#'   \code{max_evals} of evaluations have been performed.
+#' @export
 stop_when_max_evals <- function(max_evals) {
   function(pop, n_gen_ended, cur_best_ind,
            n_gen_of_best_ind, start_time, n_evals) {
@@ -709,7 +729,11 @@ stop_when_max_evals <- function(max_evals) {
 
 #' Stopping when reached max fitness value, in case we are maximizing
 #' and we know what value is the optimum or good enough.
-#' 
+#'
+#' @param max_fitness The fitness above which the evolution can stop.
+#' @return A stopping condition function that would return TRUE after
+#'   a fitness greater than or equal \code{max_fitness} is found.
+#' @export
 stop_when_max_fitness <- function(max_fitness) {
   function(pop, n_gen_ended, cur_best_ind,
            n_gen_of_best_ind, start_time, n_evals) {
@@ -720,6 +744,10 @@ stop_when_max_fitness <- function(max_fitness) {
 #' Stopping when reached min fitness value, in case we are minimizing
 #' and we know what value is the optimum or good enough.
 #' 
+#' @param min_fitness The fitness below which the evolution can stop.
+#' @return A stopping condition function that would return TRUE after
+#'   a fitness less than or equal \code{min_fitness} is found.
+#' @export
 stop_when_min_fitness <- function(min_fitness) {
   function(pop, n_gen_ended, cur_best_ind,
            n_gen_of_best_ind, start_time, n_evals) {
@@ -783,12 +811,13 @@ generate_init_chrs <- function(n, G, max_height, start_nt = G$start) {
 #' @return A reporting function.
 #' @export
 progress_reporter <- function(report_every_n_gen = 1) {
-  function(pop, n_gen_ended, cur_best_fitness,
-           n_gen_of_best_fitness, start_time, n_evals) {
+  function(pop, n_gen_ended, cur_best_ind,
+           n_gen_of_best_ind, start_time, n_evals) {
     if(((n_gen_ended - 1) %% report_every_n_gen) == 0) {
       cat("After ", n_gen_ended, "generation(s),",
           n_evals, " evaluations, current best fitness is ",
-          cur_best_fitness, " obtained in generation ", n_gen_of_best_fitness, "\n")
+          cur_best_ind$fitness, " obtained in generation ",
+          n_gen_of_best_ind, "\n")
     }
   }
 }
@@ -980,7 +1009,6 @@ steady_state_elitism_GP <- function(init_chrs = NULL, init_pop = NULL,
                                     better_score = NULL,
                                     reporting_func = NULL
                                     ) {
-
   n_evals <- 0
   start_time <- Sys.time()
   if(is.null(better_score)) {
@@ -990,7 +1018,7 @@ steady_state_elitism_GP <- function(init_chrs = NULL, init_pop = NULL,
   # get the initial population
   if(!is.null(init_chrs)) {
     pop <- list()
-    for(i in length(init_chrs)) {
+    for(i in seq_along(init_chrs)) {
       pop[[i]] <- create_individual(init_chrs[[i]],
                                     fitness_evaluator(init_chrs[[i]]))
       # need to keep track of the number of evaluations
@@ -1006,7 +1034,7 @@ steady_state_elitism_GP <- function(init_chrs = NULL, init_pop = NULL,
   n_pop_size <- length(pop)
   n_gen_ended <- 0
   cur_best_ind <- NULL
-  n_gen_of_cur_best_ind <- 0
+  n_gen_of_best_ind <- 0
 
   n_offsprings_by_crossover <- ceiling(p_crossover * n_pop_size)
   n_offsprings_by_mutation <- ceiling(p_mutation * n_pop_size)
@@ -1033,8 +1061,8 @@ steady_state_elitism_GP <- function(init_chrs = NULL, init_pop = NULL,
     }
 
     # keep only some
-    new_inds <- sort_indviduals(c(pop, offsprings_by_crossover, offsprings_by_mutation),
-                                maximize_fitness = maximize_fitness)
+    new_inds <- sort_individuals(c(pop, offsprings_by_crossover, offsprings_by_mutation),
+                                 maximize_fitness = maximize_fitness)
     
     pop <- new_inds[1:n_pop_size]
 
@@ -1046,7 +1074,7 @@ steady_state_elitism_GP <- function(init_chrs = NULL, init_pop = NULL,
          better_score(cur_gen_best$fitness,
                       cur_best_ind$fitness)) {
       cur_best_ind <- cur_gen_best
-      n_gen_of_cur_best_ind <- n_gen_ended
+      n_gen_of_best_ind <- n_gen_ended
     }
     
     # report progress
@@ -1068,7 +1096,7 @@ steady_state_elitism_GP <- function(init_chrs = NULL, init_pop = NULL,
   list(pop = pop,
        n_gen_ended = n_gen_ended,
        best_ind = cur_best_ind,
-       n_gen_of_best_ind = n_gen_of_cur_best_ind,
+       n_gen_of_best_ind = n_gen_of_best_ind,
        start_time = start_time,
        end_time = Sys.time(),
        n_evals = n_evals)

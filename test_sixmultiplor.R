@@ -106,3 +106,7 @@ run_6_multiplexor_res <- steady_state_elitism_GP(
   maximize_fitness = TRUE,
   reporting_func = progress_reporter(report_every_n_gen = 1)
 )
+
+best_6_multiplexor_found <- run_6_multiplexor_res$best_ind
+
+convert_to_phenotype(best_6_multiplexor_found$chr, test_sixmultiplexor_G)
