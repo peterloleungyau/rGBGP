@@ -12,7 +12,7 @@
 #     d2 if a0=1, a1=0;
 #     d3 if a0=1, a1=1;
 
-#library(rGBGP)
+library(rGBGP)
 
 correct_6_multiplexor <- function(a0, a1, d0, d1, d2, d3) {
   ifelse(a0,
@@ -22,10 +22,14 @@ correct_6_multiplexor <- function(a0, a1, d0, d1, d2, d3) {
 
 test_sixmultiplexor_rules <- list(
   B = list(
+    # Note that we can optionally manually give a unique name to a
+    # rule, otherwise a name will be generated.
     rule("&", "B", "B", name = "r_and"),
     rule("|", "B", "B", name = "r_or"),
     rule("!", "B", name = "r_not"),
     rule("ifelse", "B", "B", "B", name = "r_if"),
+    # Rules have default actions for constructing the phenotype, but
+    # the action can also be explicitly specified.
     rule("T", action = first)
   ),
   T = list(
@@ -88,7 +92,7 @@ chr_6_multiplexor_re_gen <- function(chr_node) {
 # test evolution -------------------------------------------------------------
 
 run_6_multiplexor_res <- steady_state_elitism_GP(
-  init_chrs = generate_init_chrs(n = 500,
+  init_chrs = generate_init_chrs(n = 50,
                                  G = test_sixmultiplexor_G,
                                  max_height = 6),
   fitness_evaluator = eval_6_multiplexor_chr,

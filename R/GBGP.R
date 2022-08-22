@@ -69,6 +69,7 @@ normalize_and_name_rules <- function(rules) {
 #'
 #'   rules_min_heights: named list of minimum heights of the rules,
 #'   using the rule id as name
+#' @import stats
 cal_min_heights <- function(rules) {
   # use a naive algorithm to iterative go through all rules of all
   # non-terminals to determine the minimum heights, until there are no
@@ -169,7 +170,36 @@ cal_min_heights <- function(rules) {
 #'   rules_min_heights: named list of minimum heights of the rules,
 #'   using the rule id as name.
 #'
-#' @examples TODO
+#' @examples
+#' \dontrun{
+#' library(rGBGP)
+#' 
+#' test_sixmultiplexor_rules <- list(
+#'   B = list(
+#'     # Note that we can optionally manually give a unique name to a
+#'     # rule, otherwise a name will be generated.
+#'     rule("&", "B", "B", name = "r_and"),
+#'     rule("|", "B", "B", name = "r_or"),
+#'     rule("!", "B", name = "r_not"),
+#'     rule("ifelse", "B", "B", "B", name = "r_if"),
+#'     # Rules have default actions for constructing the phenotype, but
+#'     # the action can also be explicitly specified.
+#'     rule("T", action = first)
+#'   ),
+#'   T = list(
+#'     rule("a0", action = first_as_symbol),
+#'     rule("a1", action = first_as_symbol),
+#'     rule("d0", action = first_as_symbol),
+#'     rule("d1", action = first_as_symbol),
+#'     rule("d2", action = first_as_symbol),
+#'     rule("d3", action = first_as_symbol)
+#'   )
+#' )
+#' 
+#' test_sixmultiplexor_G <- grammar(rules = test_sixmultiplexor_rules,
+#'                                  start = "B")
+#' 
+#' }
 #' @export
 grammar <- function(rules, start) {
   rules_with_names <- normalize_and_name_rules(rules)
@@ -326,6 +356,13 @@ generate_chromosome <- function(x, G, max_height) {
 
 #' Default generation is to treat it as a terminal.
 #'
+#' @param x The object to create from, which could be a non-terminal,
+#'   terminal, a grammar, a rule.
+#' @param G The grammar as returned by \code{grammar()}.
+#' @param max_height The allowed maximum height. The generation will
+#'   try to avoid generating a chromsome with height exceeding this. A
+#'   terminal has height 1, and every layer of non-terminal adds 1 to
+#'   the height.
 #' @export
 generate_chromosome.default <- function(x, G, max_height) {
   x
@@ -334,6 +371,13 @@ generate_chromosome.default <- function(x, G, max_height) {
 #' For character string, either generate as non-terminal, or a
 #' terminal.
 #'
+#' @param x The object to create from, which could be a non-terminal,
+#'   terminal, a grammar, a rule.
+#' @param G The grammar as returned by \code{grammar()}.
+#' @param max_height The allowed maximum height. The generation will
+#'   try to avoid generating a chromsome with height exceeding this. A
+#'   terminal has height 1, and every layer of non-terminal adds 1 to
+#'   the height.
 #' @export
 generate_chromosome.character <- function(x, G, max_height) {
   if(is_non_terminal(x, G$rules)) {
@@ -354,7 +398,7 @@ generate_chromosome.character <- function(x, G, max_height) {
                     generate_chromosome(z, G, max_height - 1)
                   }))
     } else {
-      stop("No applicable rule for non-terminal ", nt,
+      stop("No applicable rule for non-terminal ", x,
            " with minium height within ", max_height, "\n")
     }
   } else {
@@ -365,6 +409,13 @@ generate_chromosome.character <- function(x, G, max_height) {
 
 #' For grammar, just generate using the start non-terminal.
 #'
+#' @param x The object to create from, which could be a non-terminal,
+#'   terminal, a grammar, a rule.
+#' @param G The grammar as returned by \code{grammar()}.
+#' @param max_height The allowed maximum height. The generation will
+#'   try to avoid generating a chromsome with height exceeding this. A
+#'   terminal has height 1, and every layer of non-terminal adds 1 to
+#'   the height.
 #' @export
 generate_chromosome.grammar <- function(x, G, max_height) {
   generate_chromosome(x$start, G, max_height)
@@ -372,6 +423,13 @@ generate_chromosome.grammar <- function(x, G, max_height) {
 
 #' For explicit simple terminal, just return its value
 #'
+#' @param x The object to create from, which could be a non-terminal,
+#'   terminal, a grammar, a rule.
+#' @param G The grammar as returned by \code{grammar()}.
+#' @param max_height The allowed maximum height. The generation will
+#'   try to avoid generating a chromsome with height exceeding this. A
+#'   terminal has height 1, and every layer of non-terminal adds 1 to
+#'   the height.
 #' @export
 generate_chromosome.terminal <- function(x, G, max_height) {
   x$val
@@ -379,6 +437,13 @@ generate_chromosome.terminal <- function(x, G, max_height) {
 
 #' For explicit generated terminal, call its function to generate a terminal.
 #' 
+#' @param x The object to create from, which could be a non-terminal,
+#'   terminal, a grammar, a rule.
+#' @param G The grammar as returned by \code{grammar()}.
+#' @param max_height The allowed maximum height. The generation will
+#'   try to avoid generating a chromsome with height exceeding this. A
+#'   terminal has height 1, and every layer of non-terminal adds 1 to
+#'   the height.
 #' @export
 generate_chromosome.generated_terminal <- function(x, G, max_height) {
   x$func()
@@ -388,8 +453,10 @@ generate_chromosome.generated_terminal <- function(x, G, max_height) {
 
 # some utilities
 
-#' Function with constant output TRUE.
-#' 
+#' Function with constant output TRUE for an input.
+#'
+#' @param x Place holder, dummy input.
+#' @return Constant TRUE.
 #' @export
 always_true <- function(x) TRUE
 
@@ -635,7 +702,8 @@ get_height_prob_func <- function(subtree_weight, root_weight = 1) {
 #' \code{default_node_mutator} in \code{chr_mutation_func}.
 #'
 #' @param G The grammar as returned by \code{grammar()}.
-#' @param The allowed maximum height in the re-generation of the node.
+#' @param max_height The allowed maximum height in the re-generation
+#'   of the node.
 #' @return A function(node) that can be used as
 #'   \code{default_node_mutator} in \code{chr_mutation_func}.
 #' @export
@@ -1011,6 +1079,127 @@ simple_tournament <- function(pop, better_score = `>`, replace = TRUE) {
 #'     end_time: the ending time of the evolution.
 #'  
 #'     n_evals: the number of fitness evaluations performed.
+#' 
+#' @examples
+#' \dontrun{
+#' # To test the simple GBGP
+#' #
+#' # test on the simple 6-Multiplexor problem, using grammar described in
+#' #  P.A. Whigham, Grammatically-based genetic programming.
+#' #    in "Proceedings of the Workshop on Genetic Programming: From Theory to Real-World Applications,
+#' #    ed. by J.P. Rosca (Tahoe City, California, USA, 1995), pp. 33--41.
+#' # Briefly, the 6-Multiplexor is:
+#' #   Given boolean inputs a0, a1, d0, d1, d2, d3,
+#' #   Use operators (IF X Y Z), (AND X Y), (OR X Y), (NOT X), to output
+#' #     d0 if a0=0, a1=0;
+#' #     d1 if a0=0, a1=1;
+#' #     d2 if a0=1, a1=0;
+#' #     d3 if a0=1, a1=1;
+#' 
+#' library(rGBGP)
+#' 
+#' correct_6_multiplexor <- function(a0, a1, d0, d1, d2, d3) {
+#'   ifelse(a0,
+#'          ifelse(a1, d3, d2),
+#'          ifelse(a1, d1, d0))
+#' }
+#' 
+#' test_sixmultiplexor_rules <- list(
+#'   B = list(
+#'     # Note that we can optionally manually give a unique name to a
+#'     # rule, otherwise a name will be generated.
+#'     rule("&", "B", "B", name = "r_and"),
+#'     rule("|", "B", "B", name = "r_or"),
+#'     rule("!", "B", name = "r_not"),
+#'     rule("ifelse", "B", "B", "B", name = "r_if"),
+#'     # Rules have default actions for constructing the phenotype, but
+#'     # the action can also be explicitly specified.
+#'     rule("T", action = first)
+#'   ),
+#'   T = list(
+#'     rule("a0", action = first_as_symbol),
+#'     rule("a1", action = first_as_symbol),
+#'     rule("d0", action = first_as_symbol),
+#'     rule("d1", action = first_as_symbol),
+#'     rule("d2", action = first_as_symbol),
+#'     rule("d3", action = first_as_symbol)
+#'   )
+#' )
+#' 
+#' test_sixmultiplexor_G <- grammar(rules = test_sixmultiplexor_rules,
+#'                                  start = "B")
+#' 
+#' #' Turn the parse-tree into R function, for evaluation.
+#' #'
+#' #' @param chr The evolved chromosome, as a tree of node.
+#' compile_6_multiplexor_chr <- function(chr) {
+#'   f <- function(a0, a1, d0, d1, d2, d3) {}
+#'   environment(f) <- globalenv()
+#'   body(f) <- convert_to_phenotype(chr, test_sixmultiplexor_G)
+#'   f
+#' }
+#' 
+#' df_6_multiplexor <- expand.grid(
+#'   a0 = c(TRUE, FALSE),
+#'   a1 = c(TRUE, FALSE),
+#'   d0 = c(TRUE, FALSE),
+#'   d1 = c(TRUE, FALSE),
+#'   d2 = c(TRUE, FALSE),
+#'   d3 = c(TRUE, FALSE)
+#' )
+#' 
+#' df_6_multiplexor_correct <- with(
+#'   df_6_multiplexor,
+#'   correct_6_multiplexor(a0, a1, d0, d1, d2, d3))
+#' 
+#' #' To evaluate a function for 6-multiplexor
+#' #'
+#' #' @param f The function(a0, a1, d0, d1, d2, d3).
+#' #' @return The number of correct output given all the possible inputs
+#' #'   to the (a0, a1, d0, d1, d2, d3).
+#' eval_6_multiplexor_func <- function(f) {
+#'   pred <- with(df_6_multiplexor,
+#'                f(a0, a1, d0, d1, d2, d3))
+#'   sum(pred == df_6_multiplexor_correct)
+#' }
+#' 
+#' eval_6_multiplexor_chr <- function(chr) {
+#'   eval_6_multiplexor_func(compile_6_multiplexor_chr(chr))
+#' }
+#' 
+#' #' To re-generate a node based on its non-terminal.
+#' #' 
+#' chr_6_multiplexor_re_gen <- function(chr_node) {
+#'   generate_chromosome(chr_node$nt, test_sixmultiplexor_G, 5)
+#' }
+#' 
+#' # test evolution -------------------------------------------------------------
+#' 
+#' run_6_multiplexor_res <- steady_state_elitism_GP(
+#'   init_chrs = generate_init_chrs(n = 50,
+#'                                  G = test_sixmultiplexor_G,
+#'                                  max_height = 6),
+#'   fitness_evaluator = eval_6_multiplexor_chr,
+#'   when_to_stop = either_or(stop_when_max_gen(1000),
+#'                            stop_when_max_fitness(64)),
+#'   p_crossover = 0.8,
+#'   chr_crossover = function(chr1, chr2) {
+#'     # use default values for other parameters
+#'     chr_crossover_func(chr1, chr2)
+#'   },
+#'   p_mutation = 0.2,
+#'   chr_mutator = function(chr) {
+#'     chr_mutation_func(chr, chr_6_multiplexor_re_gen)
+#'   },
+#'   maximize_fitness = TRUE,
+#'   reporting_func = progress_reporter(report_every_n_gen = 1)
+#' )
+#' 
+#' best_6_multiplexor_found <- run_6_multiplexor_res$best_ind
+#' 
+#' convert_to_phenotype(best_6_multiplexor_found$chr, test_sixmultiplexor_G)
+#' 
+#' }
 #' @export
 steady_state_elitism_GP <- function(init_chrs = NULL, init_pop = NULL,
                                     fitness_evaluator,

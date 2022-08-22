@@ -1,0 +1,16 @@
+Package: rGBGP
+Title: Simple Grammar-Based Genetic Programming
+Version: 0.1.0.0
+Authors@R: 
+    person(given = "Peter",
+           family = "Lo",
+           role = c("aut", "cre"),
+           email = "peterloleungyau@gmail.com")
+Description: This is a simple implementation of Grammar-Based Genetic Programming by adapting a previous Common Lisp implementation.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.1
+Imports: 
+    stats
