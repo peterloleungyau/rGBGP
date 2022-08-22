@@ -325,12 +325,16 @@ generate_chromosome <- function(x, G, max_height) {
 }
 
 #' Default generation is to treat it as a terminal.
+#'
+#' @export
 generate_chromosome.default <- function(x, G, max_height) {
   x
 }
 
 #' For character string, either generate as non-terminal, or a
 #' terminal.
+#'
+#' @export
 generate_chromosome.character <- function(x, G, max_height) {
   if(is_non_terminal(x, G$rules)) {
     # non-terminal
@@ -360,16 +364,22 @@ generate_chromosome.character <- function(x, G, max_height) {
 }
 
 #' For grammar, just generate using the start non-terminal.
+#'
+#' @export
 generate_chromosome.grammar <- function(x, G, max_height) {
   generate_chromosome(x$start, G, max_height)
 }
 
 #' For explicit simple terminal, just return its value
+#'
+#' @export
 generate_chromosome.terminal <- function(x, G, max_height) {
   x$val
 }
 
 #' For explicit generated terminal, call its function to generate a terminal.
+#' 
+#' @export
 generate_chromosome.generated_terminal <- function(x, G, max_height) {
   x$func()
 }
@@ -378,6 +388,9 @@ generate_chromosome.generated_terminal <- function(x, G, max_height) {
 
 # some utilities
 
+#' Function with constant output TRUE.
+#' 
+#' @export
 always_true <- function(x) TRUE
 
 #' To get all the nodes of a chromosome, for selection purpose.
