@@ -455,43 +455,61 @@ generate_chromosome.generated_terminal <- function(x, G, max_height) {
 
 #' Function with constant output TRUE for an input.
 #'
-#' @param x Place holder, dummy input.
+#' @param ... Place holder, dummy input(s).
 #' @return Constant TRUE.
 #' @export
-always_true <- function(x) TRUE
+always_true <- function(...) TRUE
 
 #' To get all the nodes of a chromosome, for selection purpose.
 #'
 #' @param chr The chromosome, which should be a node.
-#' @param is_wanted Optional predicate function the returns TRUE if a
-#'   node is wanted.
+#' @param is_wanted Optional predicate function(node, at_height,
+#'   subtree_height) the returns TRUE if a node at height at_height (the
+#'   root is at height 1, each level has one more height), the subtree
+#'   has height subtree_height (a terminal has height 1, each level has
+#'   one more height), is wanted.
 #' @return a named list with:
 #'
 #'   nodes: the list of nodes
 #'
-#'   heights: a vector of the heights of the nodes corresponding to
-#'   the nodes. This will be useful to adjust the selection
-#'   probability by height.
+#'   at_heights: a vector of the heights where the nodes are at. This
+#'   will be useful in adjusting the selection probability by height.
+#'
+#'   subtree_heights: a vector of the subtree heights. This will be useful
+#'   in selecting subtrees within a certain height so as not to exceed
+#'   a certain maximum height after crossover.
 #' @export
 get_chr_nodes <- function(chr, is_wanted = always_true) {
   n <- 1
   ns <- list()
   hs <- list()
+  ts <- list()
   visit <- function(z, h) {
+    # returns the subtree height of the node
     if(inherits(z, "node")) {
-      if(is_wanted(z)) {
+      # visit all the children and collect their subtree heights
+      cs_subtree_heights <- sapply(z[["cs"]], function(w) {
+        visit(w, h+1)
+      })
+      subtree_height <- 1 + max(cs_subtree_heights)
+
+      if(is_wanted(z, h, subtree_height)) {
         ns[[n]] <<- z
         hs[[n]] <<- h
+        ts[[n]] <<- subtree_height
         n <<- n+1
       }
-      # visit all the children
-      for(w in z[["cs"]]) visit(w, h+1)
+      subtree_height
+    } else {
+      1
     }
   }
   #
   visit(chr, h = 1)
   #
-  list(nodes = ns, heights = unlist(hs))
+  list(nodes = ns,
+       at_heights = unlist(hs),
+       subtree_heights = unlist(ts))
 }
 
 #' To replace old node with new node in chromosome.
@@ -541,16 +559,24 @@ replace_node <- function(chr, old_node, new_node) {
 #' @param chr2 The second chromosome.
 #' @param n.tries The maximum number of tries before giving up and
 #'   return the first chromosome.
-#' @param is_wanted1 Optional predicate function whether to consider
-#'   nodes of chr1.
-#' @param is_wanted2 Optional predicate function whether to consider
-#'   nodes of chr2.
+#' @param is_wanted1 Optional predicate function(node, at_height,
+#'   subtree_height) whether to consider nodes of chr1.
+#' @param is_wanted2 Optional predicate function(node, at_height,
+#'   subtree_height) whether to consider nodes of chr2.
 #' @param height_prob_func1 Optional, default NULL. If non-NULL,
-#'   should be a function(heights, nodes) that should return the
-#'   vector of probability of choosing the nodes of chr1. If NULL,
-#'   there is no bias in the nodes.
+#'   should be a function(heights, subtree_heights, nodes) that should
+#'   return the vector of probability of choosing the nodes of
+#'   chr1. If NULL, there is no bias in the nodes.
 #' @param height_prob_func2 Optional, similar to height_prob_func1,
 #'   but for biasing the nodes of chr2.
+#' @param max_height Optional, default NULL. If non-NULL, should be
+#'   the maximum allowed height after the crossover. The way to ensure
+#'   the maximum height is that after the first node is selected, the
+#'   second node will be limited in the subtree height so that the
+#'   total height (the sum of the at_height of the first node, and the
+#'   subtree_height of the second node, minus one) does not exceed the
+#'   maximum height. Although this method may introduce some bias, it
+#'   is simple.
 #' @param nt_crossovers Optional, default empty list. This can be a
 #'   named list to maps non-terminal name to custom
 #'   function(node_chr1, node_chr2) that returns a new node from
@@ -566,36 +592,41 @@ chr_crossover_func <- function(chr1, chr2,
                                is_wanted2 = always_true,
                                height_prob_func1 = NULL,
                                height_prob_func2 = height_prob_func1,
+                               max_height = NULL,
                                nt_crossovers = list()) {
   ns1 <- get_chr_nodes(chr1, is_wanted = is_wanted1)
-  if(length(ns1$heights) == 0) {
+  if(length(ns1$at_heights) == 0) {
     # hopeless
     return(chr2)
   }
   #
   ns1_prob <- if(!is.null(height_prob_func1)) {
-    height_prob_func1(ns1$heights, ns1$nodes)
+    height_prob_func1(ns1$at_heights, ns1$subtree_heights, ns1$nodes)
   } else {
     NULL
   }
 
   for(i in seq(n.tries)) {
-    idx1 <- sample.int(length(ns1$heights), size = 1, prob = ns1_prob)
+    idx1 <- sample.int(length(ns1$at_heights), size = 1, prob = ns1_prob)
     node_chr1 <- ns1$nodes[[idx1]]
     nt1 <- node_chr1[["nt"]]
+    nt1_at_height <- ns1$at_heights[idx1]
+    
     # try to get another node from chr2
-    ns2 <- get_chr_nodes(chr2, is_wanted = function(z) {
-      (z[["nt"]] == nt1) && is_wanted2(z)
+    ns2 <- get_chr_nodes(chr2, is_wanted = function(z, at_height, subtree_height) {
+      (z[["nt"]] == nt1) &&
+        (is.null(max_height) || (nt1_at_height + subtree_height - 1 <= max_height)) &&
+        is_wanted2(z)
     })
 
-    if(length(ns2$heights) > 0) {
+    if(length(ns2$at_heights) > 0) {
       ns2_prob <- if(!is.null(height_prob_func2)) {
-        height_prob_func2(ns2$heights, ns2$nodes)
+        height_prob_func2(ns2$at_heights, ns2$subtree_heights, ns2$nodes)
       } else {
         NULL
       }
 
-      idx2 <- sample.int(length(ns2$heights), size = 1, prob = ns2_prob)
+      idx2 <- sample.int(length(ns2$at_heights), size = 1, prob = ns2_prob)
       node_chr2 <- ns2$nodes[[idx2]]
 
       # finally got two nodes to crossover, see if we have custom node
@@ -629,12 +660,12 @@ chr_crossover_func <- function(chr1, chr2,
 #' @param default_node_mutator The function(node) that mutate a
 #'   selected node, and the old node in \code{chr} will be replaced
 #'   with the mutated node.
-#' @param is_wanted Optional predicate function whether to consider
-#'   nodes of chr.
+#' @param is_wanted Optional predicate function(node, at_height,
+#'   subtree_height) whether to consider nodes of chr.
 #' @param height_prob_func Optional, default NULL. If non-NULL, should
-#'   be a function(heights, nodes) that should return the vector of
-#'   probability of choosing the nodes of chr. If NULL, there is no
-#'   bias in the nodes.
+#'   be a function(heights, subtree_heights, nodes) that should return
+#'   the vector of probability of choosing the nodes of chr. If NULL,
+#'   there is no bias in the nodes.
 #' @param nt_mutators Optional, default empty list. This can be a
 #'   named list to maps non-terminal name to custom function(node)
 #'   that returns a new node from selected node from chr, to replace
@@ -649,19 +680,19 @@ chr_mutation_func <- function(chr,
                               height_prob_func = NULL,
                               nt_mutators = list()) {
   ns <- get_chr_nodes(chr, is_wanted = is_wanted)
-  if(length(ns$heights) == 0) {
+  if(length(ns$at_heights) == 0) {
     # hopeless
     return(chr)
   }
   #
   ns_prob <- if(!is.null(height_prob_func)) {
-    height_prob_func(ns$heights, ns$nodes)
+    height_prob_func(ns$at_heights, ns$subtree_heights, ns$nodes)
   } else {
     NULL
   }
 
   # select a node
-  idx <- sample.int(length(ns$heights), size = 1, prob = ns_prob)
+  idx <- sample.int(length(ns$at_heights), size = 1, prob = ns_prob)
   node_chr <- ns$nodes[[idx]]
   nt <- node_chr[["nt"]]
 
@@ -690,8 +721,8 @@ chr_mutation_func <- function(chr,
 #'   \code{height_prob_func2} in \code{chr_crossover_func}.
 #' @export
 get_height_prob_func <- function(subtree_weight, root_weight = 1) {
-  function(heights, nodes) {
-    ps <- subtree_weight(heights - 1)
+  function(heights, subtree_heights, nodes) {
+    ps <- subtree_weight^(heights - 1)
     ps[heights == 1] <- root_weight
     ps/sum(ps)
   }
@@ -1172,11 +1203,16 @@ simple_tournament <- function(pop, better_score = `>`, replace = TRUE) {
 #' chr_6_multiplexor_re_gen <- function(chr_node) {
 #'   generate_chromosome(chr_node$nt, test_sixmultiplexor_G, 5)
 #' }
+#'
+#' #' Height bias in selecting nodes
+#' test_height_bias <- get_height_prob_func(subtree_weight = 0.9, root_weight = 0.3)
 #' 
 #' # test evolution -------------------------------------------------------------
+#'
+#' set.seed(123)
 #' 
 #' run_6_multiplexor_res <- steady_state_elitism_GP(
-#'   init_chrs = generate_init_chrs(n = 50,
+#'   init_chrs = generate_init_chrs(n = 100,
 #'                                  G = test_sixmultiplexor_G,
 #'                                  max_height = 6),
 #'   fitness_evaluator = eval_6_multiplexor_chr,
@@ -1185,7 +1221,10 @@ simple_tournament <- function(pop, better_score = `>`, replace = TRUE) {
 #'   p_crossover = 0.8,
 #'   chr_crossover = function(chr1, chr2) {
 #'     # use default values for other parameters
-#'     chr_crossover_func(chr1, chr2)
+#'     chr_crossover_func(chr1, chr2,
+#'                        height_prob_func1 = test_height_bias,
+#'                        height_prob_func2 = test_height_bias,
+#'                        max_height = 8)
 #'   },
 #'   p_mutation = 0.2,
 #'   chr_mutator = function(chr) {

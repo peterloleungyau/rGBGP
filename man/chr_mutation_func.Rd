@@ -26,13 +26,13 @@ chr_mutation_func(
 selected node, and the old node in \code{chr} will be replaced
 with the mutated node.}
 
-\item{is_wanted}{Optional predicate function whether to consider
-nodes of chr.}
+\item{is_wanted}{Optional predicate function(node, at_height,
+subtree_height) whether to consider nodes of chr.}
 
 \item{height_prob_func}{Optional, default NULL. If non-NULL, should
-be a function(heights, nodes) that should return the vector of
-probability of choosing the nodes of chr. If NULL, there is no
-bias in the nodes.}
+be a function(heights, subtree_heights, nodes) that should return
+the vector of probability of choosing the nodes of chr. If NULL,
+there is no bias in the nodes.}
 
 \item{nt_mutators}{Optional, default empty list. This can be a
 named list to maps non-terminal name to custom function(node)

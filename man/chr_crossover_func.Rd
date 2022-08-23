@@ -26,6 +26,7 @@ chr_crossover_func(
   is_wanted2 = always_true,
   height_prob_func1 = NULL,
   height_prob_func2 = height_prob_func1,
+  max_height = NULL,
   nt_crossovers = list()
 )
 }
@@ -37,19 +38,28 @@ chr_crossover_func(
 \item{n.tries}{The maximum number of tries before giving up and
 return the first chromosome.}
 
-\item{is_wanted1}{Optional predicate function whether to consider
-nodes of chr1.}
+\item{is_wanted1}{Optional predicate function(node, at_height,
+subtree_height) whether to consider nodes of chr1.}
 
-\item{is_wanted2}{Optional predicate function whether to consider
-nodes of chr2.}
+\item{is_wanted2}{Optional predicate function(node, at_height,
+subtree_height) whether to consider nodes of chr2.}
 
 \item{height_prob_func1}{Optional, default NULL. If non-NULL,
-should be a function(heights, nodes) that should return the
-vector of probability of choosing the nodes of chr1. If NULL,
-there is no bias in the nodes.}
+should be a function(heights, subtree_heights, nodes) that should
+return the vector of probability of choosing the nodes of
+chr1. If NULL, there is no bias in the nodes.}
 
 \item{height_prob_func2}{Optional, similar to height_prob_func1,
 but for biasing the nodes of chr2.}
+
+\item{max_height}{Optional, default NULL. If non-NULL, should be
+the maximum allowed height after the crossover. The way to ensure
+the maximum height is that after the first node is selected, the
+second node will be limited in the subtree height so that the
+total height (the sum of the at_height of the first node, and the
+subtree_height of the second node, minus one) does not exceed the
+maximum height. Although this method may introduce some bias, it
+is simple.}
 
 \item{nt_crossovers}{Optional, default empty list. This can be a
 named list to maps non-terminal name to custom

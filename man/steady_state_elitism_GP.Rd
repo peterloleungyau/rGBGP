@@ -238,10 +238,15 @@ chr_6_multiplexor_re_gen <- function(chr_node) {
   generate_chromosome(chr_node$nt, test_sixmultiplexor_G, 5)
 }
 
+#' Height bias in selecting nodes
+test_height_bias <- get_height_prob_func(subtree_weight = 0.9, root_weight = 0.3)
+
 # test evolution -------------------------------------------------------------
 
+set.seed(123)
+
 run_6_multiplexor_res <- steady_state_elitism_GP(
-  init_chrs = generate_init_chrs(n = 50,
+  init_chrs = generate_init_chrs(n = 100,
                                  G = test_sixmultiplexor_G,
                                  max_height = 6),
   fitness_evaluator = eval_6_multiplexor_chr,
@@ -250,7 +255,10 @@ run_6_multiplexor_res <- steady_state_elitism_GP(
   p_crossover = 0.8,
   chr_crossover = function(chr1, chr2) {
     # use default values for other parameters
-    chr_crossover_func(chr1, chr2)
+    chr_crossover_func(chr1, chr2,
+                       height_prob_func1 = test_height_bias,
+                       height_prob_func2 = test_height_bias,
+                       max_height = 8)
   },
   p_mutation = 0.2,
   chr_mutator = function(chr) {

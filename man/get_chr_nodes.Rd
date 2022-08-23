@@ -9,17 +9,23 @@ get_chr_nodes(chr, is_wanted = always_true)
 \arguments{
 \item{chr}{The chromosome, which should be a node.}
 
-\item{is_wanted}{Optional predicate function the returns TRUE if a
-node is wanted.}
+\item{is_wanted}{Optional predicate function(node, at_height,
+subtree_height) the returns TRUE if a node at height at_height (the
+root is at height 1, each level has one more height), the subtree
+has height subtree_height (a terminal has height 1, each level has
+one more height), is wanted.}
 }
 \value{
 a named list with:
 
 nodes: the list of nodes
 
-heights: a vector of the heights of the nodes corresponding to
-the nodes. This will be useful to adjust the selection
-probability by height.
+at_heights: a vector of the heights where the nodes are at. This
+will be useful in adjusting the selection probability by height.
+
+subtree_heights: a vector of the subtree heights. This will be useful
+in selecting subtrees within a certain height so as not to exceed
+a certain maximum height after crossover.
 }
 \description{
 To get all the nodes of a chromosome, for selection purpose.

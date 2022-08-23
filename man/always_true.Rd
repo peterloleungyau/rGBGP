@@ -4,10 +4,10 @@
 \alias{always_true}
 \title{Function with constant output TRUE for an input.}
 \usage{
-always_true(x)
+always_true(...)
 }
 \arguments{
-\item{x}{Place holder, dummy input.}
+\item{...}{Place holder, dummy input(s).}
 }
 \value{
 Constant TRUE.
