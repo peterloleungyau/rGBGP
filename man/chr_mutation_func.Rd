@@ -22,9 +22,11 @@ chr_mutation_func(
 \arguments{
 \item{chr}{The chromosome to mutate.}
 
-\item{default_node_mutator}{The function(node) that mutate a
-selected node, and the old node in \code{chr} will be replaced
-with the mutated node.}
+\item{default_node_mutator}{The function(node, at_height,
+subtree_height) that mutate a selected node at height
+\code{at_height}, and its subtree height is
+\code{subtree_height}, and the old node in \code{chr} will be
+replaced with the mutated node.}
 
 \item{is_wanted}{Optional predicate function(node, at_height,
 subtree_height) whether to consider nodes of chr.}

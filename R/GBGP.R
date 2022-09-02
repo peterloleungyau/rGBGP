@@ -657,9 +657,11 @@ chr_crossover_func <- function(chr1, chr2,
 #' but mutator one of the terminal, as appripriate.
 #'
 #' @param chr The chromosome to mutate.
-#' @param default_node_mutator The function(node) that mutate a
-#'   selected node, and the old node in \code{chr} will be replaced
-#'   with the mutated node.
+#' @param default_node_mutator The function(node, at_height,
+#'   subtree_height) that mutate a selected node at height
+#'   \code{at_height}, and its subtree height is
+#'   \code{subtree_height}, and the old node in \code{chr} will be
+#'   replaced with the mutated node.
 #' @param is_wanted Optional predicate function(node, at_height,
 #'   subtree_height) whether to consider nodes of chr.
 #' @param height_prob_func Optional, default NULL. If non-NULL, should
@@ -704,7 +706,9 @@ chr_mutation_func <- function(chr,
     default_node_mutator
   }
 
-  new_node <- special_mutation_func(node_chr)
+  new_node <- special_mutation_func(node_chr,
+                                    ns$at_heights[idx],
+                                    ns$subtree_heights[idx])
   #
   replace_node(chr, old_node = node_chr, new_node = new_node)
 }

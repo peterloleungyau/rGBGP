@@ -85,7 +85,7 @@ eval_6_multiplexor_chr <- function(chr) {
 
 #' To re-generate a node based on its non-terminal.
 #' 
-chr_6_multiplexor_re_gen <- function(chr_node) {
+chr_6_multiplexor_re_gen <- function(chr_node, ...) {
   generate_chromosome(chr_node$nt, test_sixmultiplexor_G, 5)
 }
 
